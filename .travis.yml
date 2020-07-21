@@ -1,0 +1,54 @@
+version: ~> 1.0
+os: windows
+language: cpp
+
+env:
+  global:
+    - PYBIND_BRANCH='master'
+    - PYBIND_URL='https://github.com/lkeegan/pybind11'
+    - MSYS_URL='https://github.com/msys2/msys2-installer/releases/download/2020-07-20/msys2-base-x86_64-20200720.sfx.exe'
+
+install:
+  # https://www.msys2.org/docs/ci/
+  - wget $MSYS_URL -O msys2.exe
+  - ./msys2.exe -y -oC:\\
+  - export MSYS_SHELL='cmd //C RefreshEnv.cmd & C:\\msys64\\msys2_shell.cmd -defterm -no-start -here -msys -l'
+  - export MINGW64_SHELL='cmd //C RefreshEnv.cmd & C:\\msys64\\msys2_shell.cmd -defterm -no-start -here -mingw64 -l'
+  - export MINGW32_SHELL='cmd //C RefreshEnv.cmd & C:\\msys64\\msys2_shell.cmd -defterm -no-start -here -mingw32 -l'
+  - $MSYS_SHELL -c ' '
+  - $MSYS_SHELL -c 'pacman --noconfirm -Syuu'
+  - $MSYS_SHELL -c 'pacman --noconfirm -Syuu'
+
+before_script:
+  - git clone -b $PYBIND_BRANCH --depth=1 $PYBIND_URL
+  - cd pybind11
+  - mkdir build
+  - cd build
+
+jobs:
+  include:
+    - name: "msys gcc + msys python"
+      script:
+        - $MSYS_SHELL -c 'pacman --noconfirm -Syuu gcc python cmake make'
+        - $MSYS_SHELL -c 'cmake -DCMAKE_GENERATOR="Unix Makefiles" -DPYBIND11_TEST=OFF ..'
+    - name: "mingw64 gcc + mingw64 python"
+      script:
+        - $MSYS_SHELL -c 'pacman --noconfirm -Syuu mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-python make'
+        - $MINGW64_SHELL -c 'cmake -DCMAKE_GENERATOR="Unix Makefiles" -DPYBIND11_TEST=OFF ..'
+    - name: "msys gcc + windows python"
+      script:
+        - choco install python --version=3.8.2 --force --no-progress -y
+        - $MSYS_SHELL -c 'pacman --noconfirm -Syuu gcc cmake make'
+        - $MSYS_SHELL -c 'cmake -DCMAKE_GENERATOR="Unix Makefiles" -DPYTHON_EXECUTABLE="/c/Python38/Python.exe" -DPYBIND11_TEST=OFF ..'
+    - name: "mingw64 gcc + windows python"
+      script:
+        - choco install python --version=3.8.2 --force --no-progress -y
+        - $MSYS_SHELL -c 'pacman --noconfirm -Syuu mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake make'
+        - $MINGW64_SHELL -c 'cmake -DCMAKE_GENERATOR="Unix Makefiles" -DPYTHON_EXECUTABLE="/c/Python38/Python.exe" -DPYBIND11_TEST=OFF ..'
+
+after_script:
+  - taskkill //IM gpg-agent.exe //F  # https://travis-ci.community/t/4967
+  - taskkill //IM dirmngr.exe //F  # similar to above
+
+notifications:
+  email: false
